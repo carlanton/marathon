@@ -171,46 +171,27 @@ object ProcessKeeper {
     }
   }
 
-  def stopProcess(name: String): Option[Int] = {
+  def stopProcess(name: String): Unit = {
+    import mesosphere.util.ThreadPoolContext.context
     log.info(s"Stop Process $name")
-    processes.get(name).map { process =>
-      Try(process.destroy())
-      processes -= name
-      process.exitValue()
+    val process = processes(name)
+    def killProcess: Int = {
+      // Unfortunately, there seem to be race conditions in Process.exitValue.
+      // Thus this ugly workaround.
+      Await.result(Future {
+        Try(process.destroy())
+        process.exitValue()
+      }, 5.seconds)
+    }
+    //retry on fail
+    Try(killProcess) recover { case _ => killProcess } match {
+      case Success(value)       => processes -= name
+      case Failure(NonFatal(e)) => log.error("giving up waiting for processes to finish", e)
     }
   }
 
   def stopAllProcesses(): Unit = {
-
-    def waitForProcessesToFinish(): Unit = {
-      processes.values.foreach(p => Try(p.destroy()))
-
-      // Unfortunately, there seem to be race conditions in Process.exitValue.
-      // Thus this ugly workaround.
-      val waitForExitInThread = new Thread() {
-        override def run(): Unit = {
-          processes.values.foreach(_.exitValue())
-        }
-      }
-      waitForExitInThread.start()
-      try {
-        waitForExitInThread.join(1000)
-      }
-      finally {
-        waitForExitInThread.interrupt()
-      }
-    }
-
-    try waitForProcessesToFinish()
-    catch {
-      case NonFatal(e) =>
-        log.error("while waiting for processes to finish", e)
-        try waitForProcessesToFinish()
-        catch {
-          case NonFatal(e) =>
-            log.error("giving up waiting for processes to finish", e)
-        }
-    }
+    processes.keys.foreach(stopProcess)
     processes = Map.empty
   }
 
