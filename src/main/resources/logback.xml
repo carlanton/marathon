@@ -6,6 +6,10 @@
             <pattern>[%date] %level %message \(%logger:%thread\)%n</pattern>
         </encoder>
     </appender>
+
+    <!-- Don't log ZooKeeper AuthInfo from com.twitter.zk.NativeConnector -->
+    <logger name="native-zk-connector" level="WARN" />
+
     <root level="INFO">
         <appender-ref ref="stdout"/>
     </root>
