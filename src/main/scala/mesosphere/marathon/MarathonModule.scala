@@ -155,15 +155,14 @@ class MarathonModule(conf: MarathonConf, http: HttpConf, zk: ZooKeeperClient)
         case _ => None
       }
 
-      val clientAcl = if (authInfo.isDefined) Ids.CREATOR_ALL_ACL.asScala else Ids.OPEN_ACL_UNSAFE.asScala
-
       log.info("conf.zkHosts:" + conf.zkHosts)
       log.info("authInfo: " + authInfo)
+      log.info("defaultCreationMode: " + conf.zkDefaultCreationACL)
 
       val connector = NativeConnector(conf.zkHosts, None, sessionTimeout, new JavaTimer(isDaemon = true), authInfo)
 
       val client = ZkClient(connector)
-        .withAcl(clientAcl)
+        .withAcl(conf.zkDefaultCreationACL.asScala)
         .withRetries(3)
       val compressionConf = CompressionConf(conf.zooKeeperCompressionEnabled(), conf.zooKeeperCompressionThreshold())
       new ZKStore(client, client(conf.zooKeeperStatePath), compressionConf)
@@ -269,7 +268,7 @@ class MarathonModule(conf: MarathonConf, http: HttpConf, zk: ZooKeeperClient)
   def provideCandidate(zk: ZooKeeperClient, @Named(ModuleNames.HOST_PORT) hostPort: String): Option[Candidate] = {
     if (conf.highlyAvailable()) {
       log.info("Registering in ZooKeeper with hostPort:" + hostPort)
-      val candidate = new CandidateImpl(new ZGroup(zk, ZooDefs.Ids.OPEN_ACL_UNSAFE, conf.zooKeeperLeaderPath),
+      val candidate = new CandidateImpl(new ZGroup(zk, conf.zkDefaultCreationACL, conf.zooKeeperLeaderPath),
         new Supplier[Array[Byte]] {
           def get(): Array[Byte] = {
             hostPort.getBytes("UTF-8")

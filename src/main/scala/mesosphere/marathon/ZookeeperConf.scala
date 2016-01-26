@@ -2,6 +2,7 @@ package mesosphere.marathon
 
 import java.net.InetSocketAddress
 
+import org.apache.zookeeper.ZooDefs
 import org.rogach.scallop.ScallopConf
 
 import scala.concurrent.duration._
@@ -70,6 +71,11 @@ trait ZookeeperConf extends ScallopConf {
   lazy val zkPath = zkURL match { case zkURLPattern(_, _, _, path) => path }
   lazy val zkUsername = zkURL match { case zkURLPattern(u, _, _, _) => Option(u) }
   lazy val zkPassword = zkURL match { case zkURLPattern(_, p, _, _) => Option(p) }
+
+  lazy val zkDefaultCreationACL = (zkUsername, zkPassword) match {
+    case (Some(_), Some(_)) => ZooDefs.Ids.CREATOR_ALL_ACL
+    case _ => ZooDefs.Ids.OPEN_ACL_UNSAFE
+  }
 
   lazy val zkTimeoutDuration = Duration(zooKeeperTimeout(), MILLISECONDS)
   lazy val zkSessionTimeoutDuration = Duration(zooKeeperSessionTimeout(), MILLISECONDS)
